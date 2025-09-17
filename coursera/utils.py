@@ -18,6 +18,7 @@ import datetime
 
 from bs4 import BeautifulSoup as BeautifulSoup_
 from xml.sax.saxutils import escape, unescape
+import html
 
 import six
 from six import iteritems
@@ -114,8 +115,7 @@ def clean_filename(s, minimal_change=False):
     """
 
     # First, deal with URL encoded strings
-    h = html_parser.HTMLParser()
-    s = h.unescape(s)
+    s = html.unescape(s)
     s = unquote_plus(s)
 
     # Strip forbidden characters

@@ -17,6 +17,7 @@ tmp
 # virtualenv folders
 venv2
 venv3
+venv39
 .idea
 .python-version
 .ipynb_checkpoints

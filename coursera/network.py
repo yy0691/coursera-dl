@@ -90,7 +90,21 @@ def get_page(session,
     url = url.format(**kwargs)
     reply = get_reply(session, url, post=post, data=data, headers=headers,
                       quiet=quiet)
-    return reply.json() if json else reply.text
+    
+    if json:
+        # Check if response is empty or not valid JSON
+        if not reply.text.strip():
+            logging.error("Empty response received from %s", url)
+            raise requests.exceptions.JSONDecodeError("Empty response", reply.text, 0)
+        
+        try:
+            return reply.json()
+        except requests.exceptions.JSONDecodeError as e:
+            logging.error("Failed to parse JSON response from %s", url)
+            logging.error("Response content: %s", reply.text[:500])  # Log first 500 chars
+            raise
+    
+    return reply.text
 
 
 def get_page_and_url(session, url):

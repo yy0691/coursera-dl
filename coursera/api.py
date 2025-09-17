@@ -314,12 +314,36 @@ class OnDemandCourseMaterialItemsV1(object):
         @return: Instance of OnDemandCourseMaterialItems
         @rtype: OnDemandCourseMaterialItems
         """
-
-        dom = get_page(session, OPENCOURSE_ONDEMAND_COURSE_MATERIALS,
-                       json=True,
-                       class_name=course_name)
-        return OnDemandCourseMaterialItemsV1(
-            dom['linked']['onDemandCourseMaterialItems.v1'])
+        try:
+            dom = get_page(session, OPENCOURSE_ONDEMAND_COURSE_MATERIALS,
+                           json=True,
+                           class_name=course_name)
+            
+            # Check if the response has the expected structure
+            if 'linked' not in dom:
+                logging.error("Unexpected response structure for course %s", course_name)
+                logging.error("Response keys: %s", list(dom.keys()) if isinstance(dom, dict) else "Not a dict")
+                raise ValueError("Invalid response structure from Coursera API")
+            
+            # Try v2 first, then fallback to v1
+            if 'onDemandCourseMaterialItems.v2' in dom['linked']:
+                return OnDemandCourseMaterialItemsV1(
+                    dom['linked']['onDemandCourseMaterialItems.v2'])
+            elif 'onDemandCourseMaterialItems.v1' in dom['linked']:
+                return OnDemandCourseMaterialItemsV1(
+                    dom['linked']['onDemandCourseMaterialItems.v1'])
+            else:
+                logging.error("No course material items found in response for course %s", course_name)
+                logging.error("Available linked keys: %s", list(dom['linked'].keys()) if 'linked' in dom else "No linked key")
+                raise ValueError("No course material items found in API response")
+                
+        except requests.exceptions.JSONDecodeError as e:
+            logging.error("Failed to parse JSON response for course %s: %s", course_name, e)
+            logging.error("This might be due to authentication issues or course access restrictions")
+            raise
+        except KeyError as e:
+            logging.error("Missing expected key in response for course %s: %s", course_name, e)
+            raise
 
     def get(self, lesson_id):
         """
@@ -521,9 +545,14 @@ class VideosV1(object):
     @staticmethod
     def from_json(data):
 
-        videos = [VideoV1(resolution, links['mp4VideoUrl'])
-                  for resolution, links
-                  in data['sources']['byResolution'].items()]
+        videos = []
+        for resolution, links in data['sources']['byResolution'].items():
+            if 'mp4VideoUrl' in links:
+                videos.append(VideoV1(resolution, links['mp4VideoUrl']))
+            else:
+                logging.warning("Missing mp4VideoUrl for resolution %s in video data", resolution)
+                logging.debug("Available keys in video links: %s", list(links.keys()))
+        
         videos.sort(key=lambda video: video.resolution, reverse=True)
 
         videos = OrderedDict(
